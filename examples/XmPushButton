@@ -6,144 +6,54 @@
 
 use X11::Wcl;
 
-main();
+X11::Wcl::mainloop(
+	ARGV => ["XmPushButton", "-trrf"],
+	DELETE => \&delete_window,
+	EDITRES_SUPPORT => 1,
+	INITIAL_RESOURCES => \*DATA,
+	CALLBACKS => [
+		["buttonCB", \&buttonCB, "argument object"],
+	],
+	STARTUP => \&startup,
+	NEED_MOTIF => 1,
+);
+
+# called when window manager is used to close application
+sub delete_window
+{
+	print "closed by window manager\n";
+}
 
 # exit button was pressed
 #
-# $arg1 is from resource string that references the callback; it is an
-#     integer that must be converted to a char * to be dereferenced
+# $widget is the invoking widget, of type Widget
+# $arg1 is the argument string appearing in the resource that caused
+#     this callback to be invoked
 # $arg2 is the callback struct; it must be cast into the proper type
 #     using the proper constructor
 # $arg3 is the argument from callback registration time; it is
 #     whatever PERL object was passed to X11::Wcl::WcRegisterCallback()
 sub buttonCB
 {
+	my($widget, $arg1, $arg2, $arg3) = @_;
+
+	print "exit button pressed\n";
 	exit(0);
 }
 
-# register all of my PERL callback functions
-sub RegisterApplication
+# for application-specific startup actions
+sub startup
 {
-	my($app_context) = @_;
+	my($toplevel, $app_context) = @_;
 
-	X11::Wcl::WcRegisterCallback($app_context, "buttonCB", \&buttonCB);
-}
-
-# main routine
-sub main
-{
-	# make an int for argc
-	my $argc = X11::Wcl::ptrcreate("int", 0, 1);
-	# make array of 20 char * pointers for argv
-	my $argv = X11::Wcl::ptrcreate("char *", 0, 20);
-	# make array of 20 XrmOptionDescRec structures
-	my $options = new XrmOptionDescRec(0, 20);
-	my $num_options;
-	my $app_context;
-	my $toplevel;
-	my $i;
-	my $x;
-
-	# parse the resource specifications at the end of this file
-	$main::initial_resources = get_resources();
-
-	# set up argc and argv
-	X11::Wcl::ptrset($argc, 3);
-	X11::Wcl::ptrset($argv, "TEST", 0);
-	X11::Wcl::ptrset($argv, "-rf", 1);
-	X11::Wcl::ptrset($argv, "\$main::initial_resources", 2);
-	X11::Wcl::ptrset($argv, X11::Wcl::ptrcast(0, "char *"), 3);
-
-	$num_options = 0;
-
-	# set up for option parsing
-	$x = $options->idx($num_options++);
-	$x->{option} = "-rf";
-	$x->{specifier} = "*wclInitResFile";
-	$x->{argKind} = $X11::Wcl::XrmoptionSepArg;
-	#$x->{value} = undef;
-
-	# more set up for option parsing
-	# just to demonstrate how to handle multiple option specifications
-	$x = $options->idx($num_options++);
-	$x->{option} = "-rf";
-	$x->{specifier} = "*wclInitResFile";
-	$x->{argKind} = $X11::Wcl::XrmoptionSepArg;
-	#$x->{value} = undef;
-
-    # Initialize Toolkit creating the application shell
-    $toplevel = X11::Wcl::XtInitialize("TEST",
-								  "TEST",
-								  $options,
-								  $num_options,
-								  $argc,
-								  $argv
-								  );
-
-	# get application context
-    $app_context = X11::Wcl::XtWidgetToApplicationContext($toplevel);
-
-    # Register application specific callbacks and widget classes
-	RegisterApplication($app_context);
-
-    # Register all widget classes and constructors
-    X11::Wcl::XmpRegisterAll($app_context);
-
-    # Create widget tree below toplevel shell using Xrm database
-	if (X11::Wcl::WcWidgetCreation($toplevel)) {
-		exit(1);
-	}
-
-    # Realize the widget tree
-    X11::Wcl::XtRealizeWidget($toplevel);
-
-	# not implemented at present
-	#X11::Wcl::XmpAddMwmCloseCallback($toplevel, (XtCallbackProc)DeleteWindowCB, NULL);
-
-    # finally, enter the main application loop
-    X11::Wcl::XtMainLoop();
-}
-
-# parse <DATA> and set up variables that contain the X resources that
-# the Widget Creation Library needs
-sub get_resources
-{
-	my $main;
-	my $variable;
-	my $data;
-
-	while (<DATA>) {
-		if (/^MAIN\s*$/) {
-			# start of top level resources
-			if (defined $variable) {
-				eval "\$$variable = \$data";
-				$data = "";
-			}
-			$variable = "main";
-		} elsif (/^TEMPLATE\s+(\S+)\s*$/) {
-			# start of template resources
-			if (defined $variable) {
-				eval "\$$variable = \$data";
-				$data = "";
-			}
-			$variable = $1;
-		} else {
-			$data .= $_;
-		}
-	}
-	if (defined $variable) {
-		eval "\$$variable = \$data";
-	}
-
-	# return top level resources
-	$main;
+	print "startup($toplevel, $app_context)\n";
 }
 
 __END__
 
 MAIN
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-TEST.wcChildren: form
+XmPushButton.wcChildren: form
 
 ! constants
 *wclVerboseWarnings:			True

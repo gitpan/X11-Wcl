@@ -8,22 +8,42 @@
 
 %{
 
+#if defined(HPUX_VERSION) && (HPUX_VERSION == 10)
+/*
+** We build a shared library under HPUX, so cannot use the R5
+** libXmu.a, because it is not position-independent code, so we have
+** to use the R4 library, and the name is different.  I have no idea
+** if this will really work...
+*/
+#define _XEditResCheckMessages _EditResCheckMessages
+#endif
+
+/*
+** If it begins with #include (no spaces), it is extracted from this
+** file and fed into SWIG.  So pay attention to the spacing in the
+** following list.
+*/
+
 #include <X11/Intrinsic.h>
 #include <X11/Wc/WcCreateP.h>
 #include <X11/Wc/MapAg.h>
 #include <X11/Xmp/Xmp.h>
 #include <X11/Xmp/Table.h>
+#include <X11/Misc/Misc.h>
+#	include <X11/Xmu/Editres.h>
 #include <Xm/XmAll.h>
 
 /*
 ** global variables that we use
 */
 static MapAg _X11_Wcl_agent;
+static int calloc_key;
 static WcLateBind saved_lb;
 
 /*
-** This is a callback installed by calling a Wcl function; it saves an
-** internal Wcl parameter that allows us to do some special processing
+** This is a callback installed by calling a Wcl function for the
+** purpose; it saves an internal Wcl parameter when Wcl is about to
+** execute a callback, that allows us to do some special processing
 ** for callbacks.
 */
 static Boolean
@@ -38,6 +58,8 @@ _X11_Wcl_save_lb(XtPointer hookData, WcLateBind lb)
 ** does the same thing that Wcl does by default, except that it pulls
 ** the resources from a PERL variable if the file name passed to it
 ** starts with "$".
+**
+** This functionality required a patch to Wcl 2.7.
 */
 static XrmDatabase
 _X11_Wcl_database_function(char *filename)
@@ -45,10 +67,10 @@ _X11_Wcl_database_function(char *filename)
 	if (filename && *filename == '$') {
 		SV *x = perl_get_sv(filename + 1, FALSE);
 		if (x) {
-			int len = 0;
+			size_t len = 0;
 			return(XrmGetStringDatabase(SvPV(x, len)));
 		} else {
-			warn("X11::Wcl: no such variable: (%s)", filename);
+			warn("X11::Wcl: no such resource variable: (%s)", filename);
 			return(XrmGetStringDatabase(""));
 		}
 	} else {
@@ -59,25 +81,31 @@ _X11_Wcl_database_function(char *filename)
 /*
 ** All Wcl callbacks go through this C function.  It simply formats
 ** the callback arguments into something acceptable to the PERL
-** function that handles all callbacks, and calls it.
+** function that provides the upper half of callback processing,
+** and calls it.
 */
 static void
 _X11_Wcl_do_callback(Widget widget, XtPointer x1, XtPointer x2)
 {
-	char *argv[4];
+	char *argv[5];
 	char buffer1[20];
 	char buffer2[20];
+	char buffer3[20];
 
-	sprintf(buffer1, "%d", (int)x1);
-	sprintf(buffer2, "%d", (int)x2);
+	/* PERL likes strings when calling PERL functions from C */
+	sprintf(buffer1, "%d", (int)widget);
+	sprintf(buffer2, "%d", (int)x1);
+	sprintf(buffer3, "%d", (int)x2);
 
 	/* name of callback function */
 	argv[0] = XrmQuarkToString(saved_lb->nameQ);
+	/* arguments */
 	argv[1] = buffer1;
 	argv[2] = buffer2;
-	argv[3] = 0;
+	argv[3] = buffer3;
+	argv[4] = 0;
 
-	/* do the callback */
+	/* do the callback, discarding any results */
 	perl_call_argv("X11::Wcl::do_callback", G_DISCARD, argv);
 }
 
@@ -93,25 +121,30 @@ _X11_Wcl_do_constructor(int address, int count, int size)
 {
 	if (address) {
 		/* construct from existing memory */
+		/* tbd: can idx() function be merged in here? */
 		return((char *)address);
 	} else {
 		/* construct from new memory */
 		char *x = calloc((count ? count : 1), size);
-		/* remember that we did the construction */
-		MapAg_Define(_X11_Wcl_agent, x, 0, 0, 1);
+		/*
+		** remember that we did the construction, so destructor knows
+		** to clean up later
+		*/
+		MapAg_Define(_X11_Wcl_agent, &calloc_key, x, 0, 1);
 		return(x);
 	}
 }
 
 /*
 ** This is the standard destructor, that complements the standard
-** consutructor.
+** constructor.
 */
 static void
 _X11_Wcl_do_destructor(char *self)
 {
-	if (MapAg_Find(_X11_Wcl_agent, self, 0, 0)) {
-		MapAg_Forget(_X11_Wcl_agent, self, 0, 0);
+	if (MapAg_Find(_X11_Wcl_agent, &calloc_key, self, 0)) {
+		/* we allocated this ourself */
+		MapAg_Forget(_X11_Wcl_agent, &calloc_key, self, 0);
 		free(self);
 	}
 }
