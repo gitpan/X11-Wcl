@@ -1,3 +1,8 @@
+release 0.2.1
+-------------
+- added dummy.pm so correct CPAN entries will be made by autoindexing
+  software
+
 release 0.2
 -----------
 - ported to AIX 3.2.5, AIX 4.2, HPUX 10.10

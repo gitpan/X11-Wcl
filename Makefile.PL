@@ -33,7 +33,7 @@ WriteMakefile(
 	'OBJECT'	=>	'Wcl_wrap.o',
 	'OPTIMIZE'	=>	'-I.',
 	'PM'		=>	{'Wcl.pm' => '$(INST_LIBDIR)/Wcl.pm'},
-	'VERSION'	=>	'0.2',
+	'VERSION'	=>	'0.2.1',
 	'clean'	=>	{FILES => 'Wcl.i Wcl.pm Wcl_wrap.c Wcl_wrap.html'},
 );
 
