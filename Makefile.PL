@@ -33,8 +33,8 @@ WriteMakefile(
 	'OBJECT'	=>	'Wcl_wrap.o',
 	'OPTIMIZE'	=>	'-I.',
 	'PM'		=>	{'Wcl.pm' => '$(INST_LIBDIR)/Wcl.pm'},
-	'VERSION'	=>	'0.2.1',
-	'clean'	=>	{FILES => 'Wcl.i Wcl.pm Wcl_wrap.c Wcl_wrap.html'},
+	'VERSION_FROM'	=>	'Wcl.pm',
+	'clean'	=>	{FILES => 'Wcl.i Wcl_wrap.c Wcl_wrap.html'},
 );
 
 sub MY::remove_I
@@ -112,13 +112,15 @@ sub MY::cflags
 sub MY::postamble
 {
 	my $x = <<\EOF;
+Wcl.pm.orig :
+	cat Wcl.pm >Wcl.pm.orig
 Wcl.pm : Wcl_wrap.c
-Wcl_wrap.c : Wcl-i Wcl-i2 Wcl-pm Wcl-gen
+Wcl_wrap.c : Wcl-i Wcl-i2 Wcl.pm.orig Wcl-gen
 	cat Wcl-i >Wcl.i
 	CC='$(CC)' CCFLAGS='$(INC) $(CCFLAGS) $(OPTIMIZE)' $(FULLPERL) Wcl-gen Wcl-i NUM_XTPROCS >>Wcl.i
 	cat Wcl-i2 >>Wcl.i
 	swig -package 'X11::Wcl' -module 'Wcl' -perl5 -dhtml -shadow Wcl.i
-	cat Wcl-pm >> Wcl.pm
+	cat Wcl.pm.orig >> Wcl.pm
 	perl -p -i -e 's#package Wcl;#package X11::Wcl;#' Wcl.pm
 	perl -p -i -e 's#bootstrap Wcl;#bootstrap X11::Wcl;#' Wcl.pm
 	perl -p -i -e 's#boot_Wcl#boot_X11__Wcl#' Wcl_wrap.c

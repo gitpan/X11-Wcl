@@ -6,8 +6,7 @@ README
 Wcl-gen
 Wcl-i
 Wcl-i2
-Wcl-pm
-dummy.pm
+Wcl.pm
 examples/XmContainer
 examples/XmPushButton
 examples/XtAppAddInput

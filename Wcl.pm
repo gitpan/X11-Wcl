@@ -6,6 +6,8 @@ use Carp;
 
 package X11::Wcl;
 
+$VERSION = '0.3';
+
 $toplevel = undef;
 $application_context = undef;
 $initial_resources = undef;

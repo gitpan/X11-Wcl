@@ -1,3 +1,7 @@
+release 0.3
+-------------
+- changes to versioning for compatibility with CPAN
+
 release 0.2.1
 -------------
 - added dummy.pm so correct CPAN entries will be made by autoindexing
