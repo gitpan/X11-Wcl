@@ -1,0 +1,12 @@
+COPYRIGHT
+MANIFEST
+Makefile.PL
+README
+Wcl-2.7.1.install
+Wcl-2.7.1.patch
+Wcl-gen
+Wcl-i
+Wcl-i2
+Wcl-pm
+examples/XmContainer
+examples/XmPushButton

@@ -1,0 +1,140 @@
+#!/usr/bin/perl
+#
+# generate the SWIG input file by preprocessing the X and Motif header files
+#
+# This was developed incrementally, by feeding the output to SWIG,
+# seeing what it did not like, and developing PERL regular expressions
+# to do the proper massaging.
+#
+# Porting to another platform will require changes to the way that the
+# preprocessor is invoked (including possible a different set of
+# header files) and some new regexp processing. 
+#
+
+# run the preprocessor on the header files in which we are interested
+open(IN, q{
+	gcc -E -I/usr/X11R6/include -I/usr/local/include - <<-\!
+		#include <X11/Intrinsic.h>
+		#include <X11/Wc/WcCreateP.h>
+		#include <X11/Xmp/Xmp.h>
+		#include <X11/Xmp/Table.h>
+		#include <Xm/XmAll.h>
+	!
+|});
+
+# read it all into a string
+$x = $/;
+undef $/;
+$data = <IN>;
+$/ = $x;
+
+close(IN);
+
+# remove header files we are not interested in
+# this is undoubtedly somewhat preprocessor dependent
+$data =~ s@^# \d+ "/usr/include/.*\n(([^#\n].*)?\n)*@@gm;
+$data =~ s@^# \d+ "/usr/lib/.*\n(([^#\n].*)?\n)*@@gm;
+$data =~ s@^# \d+ "/usr/X11R6/include/.*P[.]h".*\n(([^#\n].*)?\n)*@@gm;
+
+# extract #define constants from header files mentioned in input
+while ($data =~ m@^# \d+ "(\S+)"@gm) {
+	next unless !$seen{$1}++;
+	open(IN, "<$1");
+	while (<IN>) {
+		# define with no arguments
+		next unless /^\s*#\s*define\s+\w+\s+/;
+		# strip trailing comments
+		s#\s*/\*((?!\*/).)*\*/[^\S\n]$##;
+		# empty
+		next if /^\s*#\s*define\s+\w+\s*$/;
+		# strings
+		next if /^\s*#\s*define\s+\w+\s+"[^"]*"\s*$/; #"
+		# integer expressions
+		next unless (/^
+			\s*\#\s*define\s+(\w+)\s+
+			((
+			-?\d+L? |
+			-?0[xX][0-9a-fA-F]+L? |
+			[()|] |
+			<< |
+			>>
+			)\s*)+
+		$/x);
+		print STDOUT "#ifndef $1\n";
+		print STDOUT;
+		print STDOUT "#endif\n";
+	}
+	close(IN);
+}
+
+# now massage the input into something palatable to SWIG
+
+# chuck blank lines
+$data =~ s/^[^\S\n]*\n//gm;
+
+# eliminate trailing white space
+$data =~ s/[^\S\n]+\n/\n/g;
+
+# convert multiple white space to single blank
+$data =~ s/[^\S\n]+/ /g;
+
+# eliminate keywords not known to SWIG
+$data =~ s#\b(register|__signed||unsigned)\b##gm;
+
+# eliminate global arrays
+$data =~ s/^(typedef|extern)( \w+)+ \w+\[\];\n//mg;
+
+# eliminate vararg declarations
+$data =~ s/^(extern|typedef)( \w+)? \(?\*?\w+\)?\s*\([^)]*,\s*\.\.\.\s*\)\s*;\s*\n//mg;
+
+# eliminate function pointer declarations
+$data =~ s/^extern \S+ \(\*\w+\(((?!\)\s*;)(.|\n))*\)\s*;\n//mg;
+
+# eliminate functions that get passed function pointers
+$data =~ s/^extern( \S+)? \*?\w+\(((?!\)\s*;)(.|\n))*,\s*\w+\s*\(\s*\*\s*\)\s*\(((?!\)\s*;)(.|\n))*\)\s*;\n//mg;
+
+# various other special cases
+$data =~ s/^extern( \w+)? WcWidgetResourcesInitialize\s*\(\s*[^;]*;\n//m;
+$data =~ s/^typedef struct( \S+)?\s*\{\n(([^}\n].*)?\n)*\}\s*XImage;\n//m;
+$data =~ s/^typedef struct( \S+)?\s*\{\n(([^}\n].*)?\n)*\}\s*XExtData;\n//m;
+$data =~ s/^typedef struct( \S+)?\s*\{\n(([^}\n].*)?\n)*\}\s*\*_XPrivDisplay;\n//m;
+$data =~ s/^typedef struct( \S+)?\s*\{\n(([^}\n].*)?\n)*\}\s*XSizeHints;\n//m;
+
+# done massaging
+print STDOUT $data;
+
+# now add constructors, destructors and other member functions
+$x = "";
+while ($data =~ m/
+	typedef	\s*
+	(?:struct|union)(?:\s+\S+)? \s*
+	{ (?:
+		[^{}]+ |
+		{ (?:
+			[^{}]+ |
+			{ (?:
+				[^{}]+
+			)* }
+		)* }
+	)* } \s*
+	(\w+)
+/mgx) {
+	$struct = $1;
+	$x .= <<EOF;
+\%addmethods $struct {
+	$struct(int address = 0, int count = 0) {
+		return(($struct *)_X11_Wcl_do_constructor(address, count, sizeof($struct)));
+	}
+	~$struct() {
+		_X11_Wcl_do_destructor((char *)self);
+	}
+	$struct *
+	idx(int i) {
+		return(self + i);
+	}
+};
+EOF
+}
+
+# print member functions, and we are done
+print STDOUT $x;

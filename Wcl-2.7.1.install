@@ -1,0 +1,16 @@
+#!/bin/ksh
+#
+# Install Wcl-2.7 with 2.7.1 patches for X11:Wcl PERL module
+# under Redhat 4.2 linux.
+#
+
+patch -s <Wcl-2.7.1.patch &&
+xmkmf &&
+make World &&
+make \
+	DESTDIR=/usr/local/ \
+	USRLIBDIR=lib \
+	INCDIR=include/X11 \
+	MANPATH=man \
+	BINDIR=bin \
+	install

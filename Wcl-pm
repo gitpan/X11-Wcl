@@ -1,0 +1,220 @@
+#
+# This is the hand-written part of the X11::Wcl module.
+#
+
+package X11::Wcl;
+
+#
+# This is the public function used to register PERL callback
+# functions.  It saves some information in PERL structures for later
+# use when the callback is invoked, and some information it passes
+# down to the C level of Wcl for its use.
+#
+sub WcRegisterCallback
+{
+	my($app_context, $callback_name, $function, $arg) = @_;
+
+	# save function and argument for use when callback is invoked
+	$callback_function{$callback_name} = $function;
+	$callback_arg{$callback_name} = $arg;
+
+	# register callback with Widget Creation Library
+	_X11_Wcl_register_callback($app_context, $callback_name);
+}
+
+#
+# This routine is called from the C level when a callback needs to be
+# executed.  It calls the proper PERL function, passing information
+# remembered from when the callback was registered, and information
+# passed in from the C level.
+#
+sub do_callback
+{
+	my($callback_name, $client_data, $callback_data) = @_;
+
+	&{$callback_function{$callback_name}}(
+		$client_data,
+		$callback_data,
+		$callback_arg{$callback_name}
+	);
+}
+
+1;
+
+__END__
+
+=head1 NAME
+
+X11::Wcl - Perl interface to the Widget Creation Library
+
+=head1 SYNOPSIS
+
+ use X11::Wcl;
+
+=head1 DESCRIPTION
+
+This module provides an interface to the Widget Creation Library.  The
+Widget Creation Library is a C library that allows rapid prototyping
+of GUI interfaces using Xt-compatible toolkits.  The module is a
+straightforward application of the SWIG interface generator, with very
+little custom-written code.
+
+Look at the examples/ directory to see how to write a program using
+this module.  Main routines will generally be very similar to those in
+the examples, the main difference from application to application
+being in the resource specifications and the callbacks.
+
+=head1 STRUCTURE MEMBER FUNCTIONS
+
+The module currently supplies object-oriented access to a number of X,
+Xt and Motif structures and constants.  Several member functions have
+been provided for each structure to facilitate their manipulation in
+the SWIG environment without too much pain.
+
+=head2 CONSTRUCTORS
+
+Special constructors were created for all wrapped structures provided
+by this module.  Two different forms of object construction are
+supported.
+
+=over 4
+
+=item *
+
+ C<$object = new StructureName;>
+ C<$object = new StructureName(0);>
+ C<$object = new StructureName(0, COUNT);>
+
+This form of constructor call creates a new object using calloc() that
+consists of a COUNT element array of the named structure type.  If any
+arguments are omitted, an array size of 1 (a single struct) is
+assumed.
+
+The following code creates an array of 20 XrmOptionDescRec structures:
+
+ $options = new XrmOptionDescRec(0, 20);
+
+The following code creates one XrmOptionDescRec structure:
+
+ $options = new XrmOptionDescRec;
+
+=item *
+
+ C<$object = new StructureName(INT);>
+ C<$object = new StructureName(INT, COUNT);>
+
+This form of constructor call creates a new object that references
+memory that has already been allocated elsewhere.  It is typically
+used in callback routines to convert the callback pointers passed to
+the callback routine into the appropriate type of PERL callback
+struct.  INT is the memory address of the already allocated memory
+(existing C struct).  If COUNT is supplied, it is assumed that INT
+references an array of structs, and the struct at the provided index
+in the array is returned.
+
+The following code creates a CallbackStruct structure from the second
+argument passed to the routine:
+
+ sub callback
+ {
+     my($arg1, $arg2, $arg3) = @_;
+     $x = new CallbackStruct($arg2);
+     print STDOUT $x->{field}, "\n";
+     # etc.
+ }
+
+=head2 DESTRUCTOR
+
+The destructor function for each structure knows how to destroy a
+structure when it is no longer needed.  It takes into account the
+different kinds of construction that are possible.
+
+=head2 ARRAY INDEXING
+
+ $object->idx(INT);
+
+This member function assumes that $object is actually an array of
+existing objects, and returns the object residing at the provided
+integer index.
+
+Here is an example of how to initialize an array of 20 structures:
+
+ # create array of 20 structures
+ $options = new StructureName(0, 20);
+ # now initialize them
+ for ($i=0; $i<20; ++$i) {
+     $x = $options->idx($i);
+     $x->{field} = "value"
+ }
+
+=head1 CALLBACK FUNCTIONS
+
+Callbacks invoked by the GUI interface are written in PERL.  All PERL
+callback functions are passed three arguments when they are invoked:
+
+=over 4
+
+=item 1.
+
+The first argument is an integer that is the address of a string that
+contains the data appearing in the X resource specification that
+caused the callback to be invoked.
+
+=item 2.
+
+The second argument is the callback structure passed to the callback
+by the invoking widget.
+
+=item 3.
+
+The third argument is the PERL object that was passed (if any) when
+the callback routine was registered.
+
+=back
+
+See the examples supplied with this module for details on what to do
+with callback function arguments.
+
+=head1 RESOURCE SPECIFICATION
+
+The whole point of the Widget Creation Library is to make it possible
+to specify widget trees and widget resources using X resource files,
+without writing any C/C++ code.  Read the Widget Creation Library
+documentation for details on the resources that control its operation,
+and the documentation on the Motif widgets for details on what they
+expect.
+
+The Widget Creation Library is designed to use files to specify
+resource values.  To fit a little better in with PERL, a special
+syntax is available to cause PERL variables to be used instead of
+files.
+
+The usual syntax for a resource file specification is:
+
+ *resourceFile: some_file_name
+
+As a special case, when the file name begins with a dollar sign,
+resources are instead read from the named PERL variable.  So, for
+example, the following resource specifies that variable "main::x"
+contains the resources to be used:
+
+ *resourceFile: $main::x
+
+The variable should hold a string that contains X resource
+specifications in the usual X resource syntax.
+
+=head1 AUTHORS
+
+ "David E. Smyth" (Widget Creation Library)
+ "David M. Beazley" <dmb@asator.lanl.gov> (SWIG)
+ "Joseph H. Buehler" <jhpb@sarto.gaithersburg.md.us> (X11::Wcl module)
+
+=head1 SEE ALSO
+
+ Widget Creation Library documentation.
+ Motif toolkit documentation.
+ SWIG documentation.
+ examples supplied with this module.
+ perl(1).
+
+=cut
